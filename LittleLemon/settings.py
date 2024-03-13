@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "djoser",
     "rest_framework_simplejwt",
+    "django_filters",
 ]
 
 MIDDLEWARE = [
@@ -136,6 +137,8 @@ REST_FRAMEWORK = {
         "rest_framework.authentication.SessionAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 2,  # Adjust the page size as needed
 }
 
 # DJOSER SETTINGS
