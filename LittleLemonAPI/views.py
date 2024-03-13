@@ -17,6 +17,8 @@ from rest_framework.decorators import action
 from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
 
+from rest_framework.throttling import ScopedRateThrottle
+
 
 class IsManager(permissions.BasePermission):
 
@@ -41,6 +43,8 @@ class MenuItemViewSet(viewsets.ModelViewSet):
     ]  # Enables filtering by 'category' and 'featured'
     search_fields = ["title"]  # Enables searching by 'title'
     ordering_fields = ["title", "price"]  # Enables ordering by 'title' and 'price'
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "menuitems"
 
 
 class GroupUsersView(APIView):
@@ -158,6 +162,8 @@ class CartItemsView(APIView):
 
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all()
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "orders"
     serializer_class = OrderSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
