@@ -1,13 +1,14 @@
 from rest_framework import viewsets, permissions, throttling
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-from .models import MenuItem, Cart, MenuItem, Order, OrderItem
+from .models import MenuItem, Cart, MenuItem, Order, OrderItem, Category
 from .serializers import (
     MenuItemSerializer,
     UserSerializer,
     CartItemSerializer,
     OrderSerializer,
     OrderItemSerializer,
+    CategorySerializer,
 )
 from rest_framework.views import APIView
 from django.contrib.auth.models import User, Group
@@ -40,6 +41,11 @@ class MenuItemViewSet(viewsets.ModelViewSet):
     ordering_fields = ["title", "price"]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "menuitems"
+
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
 
 
 class GroupUsersView(APIView):
@@ -138,19 +144,37 @@ class CartItemsView(APIView):
         return Response(serializer.data)
 
     def post(self, request):
-        menu_item_id = request.data.get("menuitem")
+        menu_item_name = request.data.get("menuitem_name")
         quantity = request.data.get("quantity", 1)
+        unit_price = request.data.get(
+            "unit_price"
+        )  # Assuming unit_price is provided in the request
 
-        if not menu_item_id:
+        if not menu_item_name:
             return Response(
-                {"error": "MenuItem ID is required"}, status=status.HTTP_400_BAD_REQUEST
+                {"error": "MenuItem name is required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        menu_item = get_object_or_404(MenuItem, id=menu_item_id)
+        try:
+            menu_item = MenuItem.objects.get(title=menu_item_name)
+        except MenuItem.DoesNotExist:
+            return Response(
+                {"error": "MenuItem not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        except MenuItem.MultipleObjectsReturned:
+            return Response(
+                {"error": "Multiple items found with that name. Please specify by ID."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         cart_item, created = Cart.objects.get_or_create(
             user=request.user,
             menuitem=menu_item,
-            defaults={"quantity": quantity, "unit_price": menu_item.price},
+            defaults={
+                "quantity": quantity,
+                "unit_price": menu_item.price if unit_price is None else unit_price,
+            },
         )
 
         if not created:
