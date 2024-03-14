@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, throttling
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from .models import MenuItem, Cart, MenuItem, Order, OrderItem
@@ -20,8 +20,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.throttling import ScopedRateThrottle
 
 
-class IsManager(permissions.BasePermission):
-
+class IsManagerOrReadOnlyForOthers(permissions.BasePermission):
     def has_permission(self, request, view):
         return (
             request.user.groups.filter(name="Manager").exists() or request.user.is_staff
@@ -31,24 +30,20 @@ class IsManager(permissions.BasePermission):
 class MenuItemViewSet(viewsets.ModelViewSet):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
-    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [
         DjangoFilterBackend,
         filters.SearchFilter,
         filters.OrderingFilter,
     ]
-    filterset_fields = [
-        "category",
-        "featured",
-    ]  # Enables filtering by 'category' and 'featured'
-    search_fields = ["title"]  # Enables searching by 'title'
-    ordering_fields = ["title", "price"]  # Enables ordering by 'title' and 'price'
+    filterset_fields = ["category", "featured"]
+    search_fields = ["title"]
+    ordering_fields = ["title", "price"]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "menuitems"
 
 
 class GroupUsersView(APIView):
-    permission_classes = [IsAuthenticated, IsManager]
+    permission_classes = [IsAuthenticated]
 
     def get_users_in_group(self, group_name):
         group = Group.objects.get(name=group_name)
@@ -133,6 +128,9 @@ class DeliveryCrewUserDetailView(GroupUsersView):
 
 
 class CartItemsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [throttling.ScopedRateThrottle]
+    throttle_scope = "cart"
 
     def get(self, request):
         cart_items = Cart.objects.filter(user=request.user)
@@ -142,22 +140,30 @@ class CartItemsView(APIView):
     def post(self, request):
         menu_item_id = request.data.get("menuitem")
         quantity = request.data.get("quantity", 1)
+
         if not menu_item_id:
-            return Response({"error": "MenuItem ID is required"}, status=400)
+            return Response(
+                {"error": "MenuItem ID is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
         menu_item = get_object_or_404(MenuItem, id=menu_item_id)
         cart_item, created = Cart.objects.get_or_create(
             user=request.user,
             menuitem=menu_item,
             defaults={"quantity": quantity, "unit_price": menu_item.price},
         )
+
         if not created:
             cart_item.quantity += int(quantity)
             cart_item.save()
-        return Response({"status": "Menu item added to cart"}, status=201)
+
+        return Response(
+            {"status": "Menu item added to cart"}, status=status.HTTP_201_CREATED
+        )
 
     def delete(self, request):
         Cart.objects.filter(user=request.user).delete()
-        return Response({"status": "Cart cleared"}, status=200)
+        return Response({"status": "Cart cleared"}, status=status.HTTP_204_NO_CONTENT)
 
 
 class OrderViewSet(viewsets.ModelViewSet):

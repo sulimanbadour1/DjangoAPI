@@ -148,6 +148,7 @@ REST_FRAMEWORK = {
         "user": "1000/day",
         "menuitems": "500/day",  # Custom throttle rate for the MenuItemViewSet
         "orders": "300/day",  # Custom throttle rate for the OrderViewSet
+        "cart": "10/min",  # for example
     },
 }
 
